@@ -27,7 +27,8 @@ def main():
         "channel_id": channel_input, 
         "depth": 0,
         "discovered_from": None,
-        "found_via": "seed"
+        "found_via": "seed",
+        "title": "Seed Channel",
     }
     p.produce(
         topic=FOUND,

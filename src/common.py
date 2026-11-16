@@ -50,3 +50,11 @@ def dlq_payload(msg, error):
         "source": {"topic": msg.topic(), "partition": msg.partition(), "offset": msg.offset()},
         "raw": msg.value().decode("utf-8", errors="replace") if msg.value() else None,
     }
+def normalize_channel_id(raw_id):
+    if raw_id is None:
+        return None
+    s = str(raw_id).strip()
+    s = s.replace("https://t.me/", "").replace("http://t.me/", "").lstrip("@")
+    if s.isdigit():
+        return int(s)
+    return s.lower()

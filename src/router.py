@@ -1,4 +1,4 @@
-from common import BOOTSTRAP,FOUND,SEEDS,DLQ,REGISTRY,BATCH_SIZE,MAX_DEPTH,commit_with_retry,commit_positions,dlq_payload,rewind
+from common import BOOTSTRAP,FOUND,SEEDS,DLQ,REGISTRY,BATCH_SIZE,MAX_DEPTH,commit_with_retry,commit_positions,dlq_payload,rewind,normalize_channel_id
 import json
 from confluent_kafka import Producer,Consumer,TopicPartition,KafkaError,KafkaException, OFFSET_BEGINNING
 import sys
@@ -30,9 +30,12 @@ def delivery(err,msg):
         print(f"message delivered succesfully, {msg.value()}")
 
 def decide(event, seen, batch_new, max_depth):
-    channel_id = event["channel_id"]
+    channel_id = normalize_channel_id(event["channel_id"])
+    channel_title = normalize_channel_id(event["title"])
     depth = event["depth"]
     if channel_id in seen or channel_id in batch_new:
+        return "duplicate"
+    if channel_title in seen or channel_title in batch_new:
         return "duplicate"
     if depth > max_depth:
         return "too_deep"
@@ -62,10 +65,7 @@ def restore_seen():
                 continue
             raise KafkaException(msg.error())
         raw_key = msg.key().decode()
-        try:
-            key = int(raw_key)
-        except ValueError:
-            key = raw_key
+        key = normalize_channel_id(raw_key)
         value = msg.value()
         if value is None:
             seen.pop(key, None)
@@ -97,7 +97,7 @@ def main():
                     event = None
                     try:
                         event = json.loads(msg.value().decode("utf-8"))
-                        channel_id = event["channel_id"]
+                        channel_id = normalize_channel_id(event["channel_id"])
                         result = decide(event, seen, batch_new, MAX_DEPTH)
                     except Exception as e:
                         p.produce(DLQ, key=msg.key(), value=json.dumps(dlq_payload(msg, e)),
@@ -136,7 +136,6 @@ def main():
             p.abort_transaction()
         except Exception:
             pass
-        p.abort_transaction()
     finally:
         c.close()
 
